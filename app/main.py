@@ -1,13 +1,21 @@
 import random
 from typing import Optional
-from fastapi import FastAPI, Response, status, HTTPException
+from fastapi import FastAPI, Response, status, HTTPException, Depends
 from fastapi.params import Body
 from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
+from sqlalchemy.orm import Session
 
 from . import db_config
+from . import models
+from .database import engine, get_db
+
+
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI()
 
 
 class Post(BaseModel):
@@ -30,31 +38,37 @@ while True:
         print("Error: ", error)
         time.sleep(2)
 
-app = FastAPI()
-
-
-my_posts = [
-    {'title': 'The first one', 'content': 'The first content', 'id': 1},
-    {'title': 'The second one', 'content': 'The second content', 'id': 2}
-]
-
 
 @app.get('/')
 async def root():
     return {'message': 'Hello world'}
 
 
+@app.get('/sqlalchemy')
+def test_posts(db: Session = Depends(get_db)):
+    posts = db.query(models.Post).all()
+    return {
+        "posts": posts
+    }
+
+
 @app.get("/posts", status_code=status.HTTP_200_OK)
-def get_posts():
-    cursor.execute("select * from posts")
-    posts = cursor.fetchall()
+def get_posts(db: Session = Depends(get_db)):
+    # cursor.execute("select * from posts")
+    # posts = cursor.fetchall()
+
+    # sqlalchemy way
+    posts = db.query(models.Post).all()
     return {'posts': posts}
 
 
 @app.get("/posts/{idx}")
-def get_post(idx: int):
-    cursor.execute("select * from posts where id = {}".format(idx))
-    post = cursor.fetchone()
+def get_post(idx: int, db: Session = Depends(get_db)):
+    # cursor.execute("select * from posts where id = {}".format(idx))
+    # post = cursor.fetchone()
+
+    # sqlalchemy way
+    post = db.query(models.Post).filter(models.Post.id == idx).first()
     if post:
         return {'post': post}
     raise HTTPException(
@@ -62,56 +76,68 @@ def get_post(idx: int):
         detail='post with id: {} was not found.'.format(idx)
     )
 
-# def get_post(idx: int, response: Response):
-    # response.status_code = status.HTTP_404_NOT_FOUND
-    # return {'msg': 'post with id: {} was not found.'.format(idx)}
-
 
 @app.post("/posts", status_code=status.HTTP_200_OK)
-def create_posts(new_post: Post):
+def create_posts(new_post: Post, db: Session = Depends(get_db)):
     post_dict = new_post.dict()
-    cursor.execute(
-        """INSERT INTO posts (title, content) VALUES (%s, %s) RETURNING *""", (
-            post_dict['title'],
-            post_dict['content']))
-    new_post = cursor.fetchone()
-    conn.commit()  # 需要执行提交的对象是connection
+    # cursor.execute(
+    #     """INSERT INTO posts (title, content) VALUES (%s, %s) RETURNING *""", (
+    #         post_dict['title'],
+    #         post_dict['content']))
+    # new_post = cursor.fetchone()
+    # conn.commit()  # 需要执行提交的对象是connection
 
-    return {'post': new_post}
+    # sqlalchemy way
+    # added_post = models.Post(**new_post.dict())
+    added_post = models.Post(
+        title=new_post.title,
+        content=new_post.content,
+        published=new_post.published)  # 创建一条数据记录
+    db.add(added_post)  # 将记录加到数据表中
+    db.commit()  # 提交
+    db.refresh(added_post)  # 刷新
 
-
-def find_index_post(idx):
-    for i, post in enumerate(my_posts):
-        if post['id'] == idx:
-            return i
-    return -1
+    return {'post': added_post}
 
 
 @app.delete('/posts/{idx}')
-def delete_post(idx: int):
-    cursor.execute("""DELETE FROM posts where id = %s returning *""", (str(idx), ))
-    delete_post = cursor.fetchone()
-    conn.commit()
+def delete_post(idx: int, db: Session = Depends(get_db)):
+    # cursor.execute(
+    #     """DELETE FROM posts where id = %s returning *""", (str(idx), ))
+    # delete_post = cursor.fetchone()
+    # conn.commit()
 
-    if not delete_post:
+    # sqlalchemy way
+    deleted_post = db.query(models.Post).filter(models.Post.id == idx)
+
+    if not deleted_post.first():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="post with id: {} was not found.".format(idx)
         )
 
-    return {'post': delete_post}
+    deleted_post.delete(synchronize_session=False)
+    db.commit()
+
+    return {'post': deleted_post}
 
 
 @app.put("/posts/{idx}")
-def update_post(idx: int, post: Post):
-    cursor.execute("UPDATE posts set title=%s, content=%s where id=%s returning *""", (post.title, post.content, str(idx)))
-    updated_post = cursor.fetchone()
-    conn.commit()
+def update_post(idx: int, post: Post, db: Session = Depends(get_db)):
+    # cursor.execute(
+    #     "UPDATE posts set title=%s, content=%s where id=%s returning *"
+    #     "", (post.title, post.content, str(idx)))
+    # updated_post = cursor.fetchone()
+    # conn.commit()
 
-    if not updated_post:
+    # sqlalchemy way
+    updated_query = db.query(models.Post).filter(models.Post.id == idx)
+    if not updated_query.first():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail='post with id: {} was not found.'.format(idx)
         )
-
-    return {'post': updated_post}
+    updated_query.update(post.dict(),
+                         synchronize_session=False)
+    db.commit()
+    return {'post': updated_query.first()}
