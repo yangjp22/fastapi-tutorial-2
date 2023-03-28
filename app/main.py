@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from . import db_config
 from . import models
 from .database import engine, get_db
-from .schemas import PostCreate, PostUpdate, PostResponse
+from .utils import hashed
+from .schemas import PostCreate, PostUpdate, PostResponse, UserResponse, UserCreate
 
 
 models.Base.metadata.create_all(bind=engine)
@@ -65,7 +66,7 @@ def get_post(idx: int, db: Session = Depends(get_db)):
 
 @app.post("/posts", status_code=status.HTTP_200_OK, response_model=PostResponse)
 def create_posts(new_post: PostCreate, db: Session = Depends(get_db)):
-    post_dict = new_post.dict()
+    # post_dict = new_post.dict()
     # cursor.execute(
     #     """INSERT INTO posts (title, content) VALUES (%s, %s) RETURNING *""", (
     #         post_dict['title'],
@@ -127,3 +128,40 @@ def update_post(idx: int, post: PostUpdate, db: Session = Depends(get_db)):
                          synchronize_session=False)
     db.commit()
     return updated_query.first()
+
+
+@app.get("/users", response_model=List[UserResponse])
+def get_users(db: Session = Depends(get_db)):
+    users = db.query(models.User).all()
+    return users
+
+
+@app.get("/users/{idx}", response_model=UserResponse)
+def get_user(idx: int, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == idx)
+    if not user.first():
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="user with id: {} was not found.".format(idx)
+        )
+
+    return user.first()
+
+
+@app.post("/users", status_code=status.HTTP_200_OK, response_model=UserResponse)
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    existed = db.query(models.User).filter(models.User.email == user.email).first()
+    if existed:
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The email: {} exists.".format(user.email)
+        )
+
+    # hash the password
+    user.password = hashed(user.password)
+
+    new_user = models.User(**user.dict())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
