@@ -1,8 +1,7 @@
 import random
-from typing import Optional
+from typing import Optional, List
 from fastapi import FastAPI, Response, status, HTTPException, Depends
 from fastapi.params import Body
-from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
@@ -11,17 +10,12 @@ from sqlalchemy.orm import Session
 from . import db_config
 from . import models
 from .database import engine, get_db
+from .schemas import PostCreate, PostUpdate, PostResponse
 
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
-
-
-class Post(BaseModel):
-    title: str
-    content: str
-    published: bool = True
 
 
 while True:
@@ -44,25 +38,17 @@ async def root():
     return {'message': 'Hello world'}
 
 
-@app.get('/sqlalchemy')
-def test_posts(db: Session = Depends(get_db)):
-    posts = db.query(models.Post).all()
-    return {
-        "posts": posts
-    }
-
-
-@app.get("/posts", status_code=status.HTTP_200_OK)
+@app.get("/posts", status_code=status.HTTP_200_OK, response_model=List[PostResponse])
 def get_posts(db: Session = Depends(get_db)):
     # cursor.execute("select * from posts")
     # posts = cursor.fetchall()
 
     # sqlalchemy way
     posts = db.query(models.Post).all()
-    return {'posts': posts}
+    return posts
 
 
-@app.get("/posts/{idx}")
+@app.get("/posts/{idx}", response_model=PostResponse)
 def get_post(idx: int, db: Session = Depends(get_db)):
     # cursor.execute("select * from posts where id = {}".format(idx))
     # post = cursor.fetchone()
@@ -70,15 +56,15 @@ def get_post(idx: int, db: Session = Depends(get_db)):
     # sqlalchemy way
     post = db.query(models.Post).filter(models.Post.id == idx).first()
     if post:
-        return {'post': post}
+        return post
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail='post with id: {} was not found.'.format(idx)
     )
 
 
-@app.post("/posts", status_code=status.HTTP_200_OK)
-def create_posts(new_post: Post, db: Session = Depends(get_db)):
+@app.post("/posts", status_code=status.HTTP_200_OK, response_model=PostResponse)
+def create_posts(new_post: PostCreate, db: Session = Depends(get_db)):
     post_dict = new_post.dict()
     # cursor.execute(
     #     """INSERT INTO posts (title, content) VALUES (%s, %s) RETURNING *""", (
@@ -97,7 +83,7 @@ def create_posts(new_post: Post, db: Session = Depends(get_db)):
     db.commit()  # 提交
     db.refresh(added_post)  # 刷新
 
-    return {'post': added_post}
+    return added_post
 
 
 @app.delete('/posts/{idx}')
@@ -119,11 +105,11 @@ def delete_post(idx: int, db: Session = Depends(get_db)):
     deleted_post.delete(synchronize_session=False)
     db.commit()
 
-    return {'post': deleted_post}
+    return deleted_post
 
 
-@app.put("/posts/{idx}")
-def update_post(idx: int, post: Post, db: Session = Depends(get_db)):
+@app.put("/posts/{idx}", response_model=PostResponse)
+def update_post(idx: int, post: PostUpdate, db: Session = Depends(get_db)):
     # cursor.execute(
     #     "UPDATE posts set title=%s, content=%s where id=%s returning *"
     #     "", (post.title, post.content, str(idx)))
@@ -140,4 +126,4 @@ def update_post(idx: int, post: Post, db: Session = Depends(get_db)):
     updated_query.update(post.dict(),
                          synchronize_session=False)
     db.commit()
-    return {'post': updated_query.first()}
+    return updated_query.first()
