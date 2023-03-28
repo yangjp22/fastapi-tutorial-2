@@ -20,7 +20,7 @@ def get_users(db: Session = Depends(get_db)):
 def get_user(idx: int, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == idx)
     if not user.first():
-        return HTTPException(
+        raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="user with id: {} was not found.".format(idx)
         )
@@ -36,7 +36,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         models.User).filter(
         models.User.email == user.email).first()
     if existed:
-        return HTTPException(
+        raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="The email: {} exists.".format(user.email)
         )
