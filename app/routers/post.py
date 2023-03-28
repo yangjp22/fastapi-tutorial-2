@@ -5,12 +5,16 @@ from typing import List
 from app.schemas import PostUpdate, PostResponse, PostCreate
 from .. import models
 from ..database import get_db
+from ..oauth2 import get_current_user
+from ..schemas import UserResponse
 
 router = APIRouter()
 
 
-@router.get("/", status_code=status.HTTP_200_OK, response_model=List[PostResponse])
-def get_posts(db: Session = Depends(get_db)):
+@router.get("/", status_code=status.HTTP_200_OK,
+            response_model=List[PostResponse])
+def get_posts(db: Session = Depends(get_db),
+              user_id: UserResponse = Depends(get_current_user)):
     # cursor.execute("select * from posts")
     # posts = cursor.fetchall()
 
@@ -20,7 +24,8 @@ def get_posts(db: Session = Depends(get_db)):
 
 
 @router.get("/{idx}", response_model=PostResponse)
-def get_post(idx: int, db: Session = Depends(get_db)):
+def get_post(idx: int, db: Session = Depends(get_db),
+             user_id: UserResponse = Depends(get_current_user)):
     # cursor.execute("select * from posts where id = {}".format(idx))
     # post = cursor.fetchone()
 
@@ -35,7 +40,12 @@ def get_post(idx: int, db: Session = Depends(get_db)):
 
 
 @router.post("/", status_code=status.HTTP_200_OK, response_model=PostResponse)
-def create_posts(new_post: PostCreate, db: Session = Depends(get_db)):
+def create_posts(
+        new_post: PostCreate,
+        db: Session = Depends(get_db),
+        user_id: UserResponse = Depends(get_current_user)):  # we can use user_id in this function now
+    print(user_id)
+    print(user_id.password)
     # post_dict = new_post.dict()
     # cursor.execute(
     #     """INSERT INTO posts (title, content) VALUES (%s, %s) RETURNING *""", (
@@ -58,7 +68,8 @@ def create_posts(new_post: PostCreate, db: Session = Depends(get_db)):
 
 
 @router.delete('/{idx}')
-def delete_post(idx: int, db: Session = Depends(get_db)):
+def delete_post(idx: int, db: Session = Depends(get_db),
+                user_id: UserResponse = Depends(get_current_user)):
     # cursor.execute(
     #     """DELETE FROM posts where id = %s returning *""", (str(idx), ))
     # delete_post = cursor.fetchone()
@@ -80,7 +91,11 @@ def delete_post(idx: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{idx}", response_model=PostResponse)
-def update_post(idx: int, post: PostUpdate, db: Session = Depends(get_db)):
+def update_post(
+        idx: int,
+        post: PostUpdate,
+        db: Session = Depends(get_db),
+        user_id: UserResponse = Depends(get_current_user)):
     # cursor.execute(
     #     "UPDATE posts set title=%s, content=%s where id=%s returning *"
     #     "", (post.title, post.content, str(idx)))
