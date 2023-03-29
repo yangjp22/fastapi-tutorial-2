@@ -6,8 +6,13 @@ import psycopg2
 import time
 
 from . import db_config
+from .config import settings
 
-SQLALCHEMY_DATABASE_URL = 'postgresql://postgres:604030@localhost/fastapi'
+SQLALCHEMY_DATABASE_URL = 'postgresql://{}:{}@{}/{}'.format(
+    settings.database_username,
+    settings.database_password,
+    settings.database_hostname,
+    settings.database_name)
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)  # 负责和数据库建立连接connection
 

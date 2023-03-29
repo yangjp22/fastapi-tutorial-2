@@ -5,7 +5,7 @@ from fastapi.security.oauth2 import OAuth2PasswordRequestForm
 from ..database import get_db
 from ..models import User
 from ..oauth2 import create_access_token
-from ..schemas import UserLogin, Token
+from ..schemas import Token
 from ..utils import verify
 
 router = APIRouter()
