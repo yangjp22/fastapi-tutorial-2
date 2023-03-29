@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException, status, APIRouter
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.schemas import PostUpdate, PostResponse, PostCreate
 from .. import models
@@ -13,13 +13,13 @@ router = APIRouter()
 
 @router.get("/", status_code=status.HTTP_200_OK,
             response_model=List[PostResponse])
-def get_posts(db: Session = Depends(get_db),
+def get_posts(limit: int = 10, skip: int = 5, search: Optional[str] = "", db: Session = Depends(get_db),
               user_id: UserResponse = Depends(get_current_user)):
     # cursor.execute("select * from posts")
     # posts = cursor.fetchall()
 
     # sqlalchemy way
-    posts = db.query(models.Post).all()
+    posts = db.query(models.Post).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
     return posts
 
 
@@ -43,9 +43,7 @@ def get_post(idx: int, db: Session = Depends(get_db),
 def create_posts(
         new_post: PostCreate,
         db: Session = Depends(get_db),
-        user_id: UserResponse = Depends(get_current_user)):  # we can use user_id in this function now
-    print(user_id)
-    print(user_id.password)
+        user: UserResponse = Depends(get_current_user)):  # we can use user_id in this function now
     # post_dict = new_post.dict()
     # cursor.execute(
     #     """INSERT INTO posts (title, content) VALUES (%s, %s) RETURNING *""", (
@@ -59,7 +57,8 @@ def create_posts(
     added_post = models.Post(
         title=new_post.title,
         content=new_post.content,
-        published=new_post.published)  # 创建一条数据记录
+        published=new_post.published,
+        user_id=user.id)  # 创建一条数据记录
     db.add(added_post)  # 将记录加到数据表中
     db.commit()  # 提交
     db.refresh(added_post)  # 刷新
@@ -69,7 +68,7 @@ def create_posts(
 
 @router.delete('/{idx}')
 def delete_post(idx: int, db: Session = Depends(get_db),
-                user_id: UserResponse = Depends(get_current_user)):
+                user: UserResponse = Depends(get_current_user)):
     # cursor.execute(
     #     """DELETE FROM posts where id = %s returning *""", (str(idx), ))
     # delete_post = cursor.fetchone()
@@ -84,6 +83,12 @@ def delete_post(idx: int, db: Session = Depends(get_db),
             detail="post with id: {} was not found.".format(idx)
         )
 
+    if deleted_post.first().user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete the post"
+        )
+
     deleted_post.delete(synchronize_session=False)
     db.commit()
 
@@ -95,7 +100,7 @@ def update_post(
         idx: int,
         post: PostUpdate,
         db: Session = Depends(get_db),
-        user_id: UserResponse = Depends(get_current_user)):
+        user: UserResponse = Depends(get_current_user)):
     # cursor.execute(
     #     "UPDATE posts set title=%s, content=%s where id=%s returning *"
     #     "", (post.title, post.content, str(idx)))
@@ -109,6 +114,13 @@ def update_post(
             status_code=status.HTTP_404_NOT_FOUND,
             detail='post with id: {} was not found.'.format(idx)
         )
+
+    if updated_query.first().user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update the post."
+        )
+
     updated_query.update(post.dict(),
                          synchronize_session=False)
     db.commit()

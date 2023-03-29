@@ -1,9 +1,6 @@
 from fastapi import FastAPI
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import time
+from pydantic import BaseSettings
 
-from . import db_config
 from . import models
 from .database import engine
 from .routers import user, post, auth
@@ -15,21 +12,6 @@ app = FastAPI()
 app.include_router(user.router, prefix="/users", tags=["Users"])
 app.include_router(post.router, prefix="/posts", tags=["Posts"])
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-
-
-while True:
-    try:
-        params = db_config.config("app/database.ini")
-        conn = psycopg2.connect(
-            **params,
-            cursor_factory=RealDictCursor)
-        cursor = conn.cursor()
-        print("Database connection was successful.")
-        break
-    except Exception as error:
-        print("Connection to database failed")
-        print("Error: ", error)
-        time.sleep(2)
 
 
 @app.get('/')
