@@ -1,0 +1,7 @@
+# install psycopg2 successfully
+
+yum install gcc python-devel postgresql-devel
+
+pip install psycopg2-binary
+
+then pip install psycopg2
