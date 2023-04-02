@@ -30,16 +30,16 @@ def get_db():
         db.close()
 
 
-while True:
-    try:
-        params = db_config.config("app/database.ini")
-        conn = psycopg2.connect(
-            **params,
-            cursor_factory=RealDictCursor)
-        cursor = conn.cursor()
-        print("Database connection was successful.")
-        break
-    except Exception as error:
-        print("Connection to database failed")
-        print("Error: ", error)
-        time.sleep(2)
+# while True:
+#     try:
+#         params = db_config.config("app/database.ini")
+#         conn = psycopg2.connect(
+#             **params,
+#             cursor_factory=RealDictCursor)
+#         cursor = conn.cursor()
+#         print("Database connection was successful.")
+#         break
+#     except Exception as error:
+#         print("Connection to database failed")
+#         print("Error: ", error)
+#         time.sleep(2)
