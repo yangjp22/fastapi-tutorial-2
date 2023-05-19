@@ -1,0 +1,14 @@
+name: first run the actions
+
+on:
+  workflow_dispatch:
+
+env:
+  person: yangj22
+
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: run one-line script
+        run: echo ${{ env.person }}
